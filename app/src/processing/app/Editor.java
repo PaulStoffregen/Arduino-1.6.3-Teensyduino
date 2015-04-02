@@ -737,8 +737,33 @@ public class Editor extends JFrame implements RunnerListener {
       public void menuCanceled(MenuEvent e) {}
       public void menuDeselected(MenuEvent e) {}
       public void menuSelected(MenuEvent e) {
-        //System.out.println("Tools menu selected.");
         populatePortMenu();
+        for (Component c : toolsMenu.getMenuComponents()) {
+          if ((c instanceof JMenu) && c.isVisible()) {
+            JMenu menu = (JMenu)c;
+            String name = menu.getText();
+            if (name == null) continue;
+            String basename = name;
+            int index = name.indexOf(':');
+            if (index > 0) basename = name.substring(0, index);
+            String sel = null;
+            int count = menu.getItemCount();
+            for (int i=0; i < count; i++) {
+              JMenuItem item = menu.getItem(i);
+              if (item != null && item.isSelected()) {
+                sel = item.getText();
+                if (sel != null) break;
+              }
+            }
+            if (sel == null) {
+              if (!name.equals(basename)) menu.setText(basename);
+            } else {
+              if (sel.length() > 17) sel = sel.substring(0, 16) + "...";
+              String newname = basename + ": \"" + sel + "\"";
+              if (!name.equals(newname)) menu.setText(newname);
+            }
+          }
+        }
       }
     });
 
@@ -1003,6 +1028,15 @@ public class Editor extends JFrame implements RunnerListener {
 
   protected void populatePortMenu() {
     serialMenu.removeAll();
+
+    if (BaseNoGui.isTeensyduino()) {
+      if (BaseNoGui.getBoardPreferences().get("fake_serial") != null) {
+        serialMenu.setEnabled(false);
+        serialMenu.setText("Port (emulated serial)");
+        return;
+      }
+    }
+    serialMenu.setText("Port");
 
     String selectedPort = Preferences.get("serial.port");
 
@@ -2463,7 +2497,7 @@ public class Editor extends JFrame implements RunnerListener {
       try {
         if (serialMonitor != null) {
           serialMonitor.close();
-          serialMonitor.setVisible(false);
+          if (!BaseNoGui.isTeensyduino()) serialMonitor.setVisible(false);
         }
 
         uploading = true;
@@ -2495,6 +2529,7 @@ public class Editor extends JFrame implements RunnerListener {
       uploading = false;
       //toolbar.clear();
       toolbar.deactivate(EditorToolbar.EXPORT);
+      if (BaseNoGui.isTeensyduino() && serialMonitor != null) serialMonitor.reopen();
     }
   }
 
@@ -2505,7 +2540,7 @@ public class Editor extends JFrame implements RunnerListener {
       try {
         if (serialMonitor != null) {
           serialMonitor.close();
-          serialMonitor.setVisible(false);
+          if (!BaseNoGui.isTeensyduino()) serialMonitor.setVisible(false);
         }
 
         uploading = true;
@@ -2537,6 +2572,7 @@ public class Editor extends JFrame implements RunnerListener {
       uploading = false;
       //toolbar.clear();
       toolbar.deactivate(EditorToolbar.EXPORT);
+      if (BaseNoGui.isTeensyduino() && serialMonitor != null) serialMonitor.reopen();
     }
   }
 
@@ -2589,6 +2625,12 @@ public class Editor extends JFrame implements RunnerListener {
 
     BoardPort port = Base.getDiscoveryManager().find(Preferences.get("serial.port"));
 
+    if (BaseNoGui.isTeensyduino() && BaseNoGui.getBoardPreferences().get("fake_serial") != null) {
+      port = new BoardPort();
+      port.setAddress("fake serial");
+      port.setProtocol("serial");
+      port.setLabel("Emulated Serial");
+    }
     if (port == null) {
       statusError(I18n.format("Board at {0} is not available", Preferences.get("serial.port")));
       return;
